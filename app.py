@@ -1,6 +1,6 @@
 import os
 import spotipy
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for, session
 from spotipy.oauth2 import SpotifyOAuth
 from dotenv import load_dotenv
 
@@ -56,6 +56,9 @@ def get_audio_features(song_name):
 # 训练 KNN 模型
 def train_model(X, y, n_neighbors=3):
     from sklearn.neighbors import KNeighborsClassifier
+    if len(X) == 0 or len(y) == 0:
+        print("训练数据为空，无法训练模型")
+        return None
     model = KNeighborsClassifier(n_neighbors=n_neighbors)
     model.fit(X, y)
     return model
@@ -75,8 +78,14 @@ def train():
         user_input = request.form["user_input"]
         # 解析和提取特征
         X, y = parse_and_extract_features(user_input)
-        model = train_model(X, y)
-        return render_template("predict.html", model=model)
+        if X and y:  # 确保 X 和 y 不为空
+            model = train_model(X, y)
+            if model:
+                return render_template("predict.html", model=model)
+            else:
+                return "无法训练模型，请检查输入的数据是否有效。"
+        else:
+            return "输入的歌曲数据无效，请检查格式或歌曲名称是否正确。"
     return render_template("train.html")
 
 # 预测页面
