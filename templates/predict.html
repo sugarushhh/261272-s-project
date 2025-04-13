@@ -1,16 +1,16 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>预测结果</title>
+    <title>预测用户</title>
 </head>
 <body>
-    <h1>预测歌曲归属</h1>
-    <form method="POST" action="/predict">
-        <input type="text" name="song_name" placeholder="输入歌曲名称">
+    <h2>预测歌曲归属用户</h2>
+    <form action="/predict" method="post">
+        <input type="text" name="song_name" placeholder="请输入歌曲名">
         <input type="submit" value="预测">
     </form>
-    {% if group is not none %}
-        <p>预测结果：属于用户组 {{ group }}</p>
+    {% if group %}
+        <p><strong>{{ group }}</strong></p>
     {% endif %}
 </body>
 </html>

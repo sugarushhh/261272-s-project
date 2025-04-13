@@ -4,10 +4,10 @@
     <title>训练模型</title>
 </head>
 <body>
-    <h1>输入训练数据</h1>
-    <form method="POST">
-        <textarea name="user_input" rows="10" cols="50" placeholder="每组用 / 分隔，每首歌用逗号分隔"></textarea><br>
-        <input type="submit" value="提交并训练模型">
+    <h2>输入各用户的歌曲（用 / 分组，逗号或空格分隔歌曲）</h2>
+    <form action="/train" method="post">
+        <textarea name="user_input" rows="5" cols="60" placeholder="示例：song1, song2 / song3 song4 / song5"></textarea><br>
+        <input type="submit" value="训练模型">
     </form>
 </body>
 </html>
