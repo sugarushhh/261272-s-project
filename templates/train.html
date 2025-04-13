@@ -1,12 +1,15 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>训练模型</title>
 </head>
 <body>
-    <h2>输入各用户的歌曲（用 / 分组，逗号或空格分隔歌曲）</h2>
-    <form action="/train" method="post">
-        <textarea name="user_input" rows="5" cols="60" placeholder="示例：song1, song2 / song3 song4 / song5"></textarea><br>
+    <h1>训练模型</h1>
+    <form action="/" method="POST">
+        <label for="user_input">输入歌曲列表 (以 / 分隔每组歌曲，以 , 或空格分隔单个歌曲):</label><br>
+        <textarea id="user_input" name="user_input" rows="4" cols="50"></textarea><br>
         <input type="submit" value="训练模型">
     </form>
 </body>

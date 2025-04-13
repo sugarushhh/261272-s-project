@@ -104,28 +104,12 @@ def parse_and_extract_features(input_str):
                 labels.append(idx)
     return all_features, labels
 
-# 授权 callback 路由
+# 回调路由
 @app.route("/callback")
 def callback():
-    try:
-        # 获取 code 参数
-        code = request.args.get("code")
-        if not code:
-            return "⚠️ 未获取到授权 code，请确保你点击了授权链接"
-
-        # 获取 access token
-        token_info = sp_oauth.get_access_token(code, as_dict=False)
-        if not token_info:
-            return "❌ 获取 access token 失败，可能需要重新授权"
-
-        # 缓存 token 到本地文件
-        with open(".cache", "w") as f:
-            f.write(token_info['access_token'])
-
-        return redirect(url_for("train"))
-    except Exception as e:
-        print("❌ /callback 授权出错:", str(e))
-        return f"Internal Server Error: {e}"
+    token_info = sp_oauth.get_access_token(request.args["code"])
+    session["token_info"] = token_info
+    return redirect(url_for("train"))
 
 # 运行 Flask 应用
 if __name__ == "__main__":
