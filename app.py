@@ -1,113 +1,134 @@
 import os
+from flask import Flask, redirect, request, url_for, render_template
 import spotipy
-from flask import Flask, render_template, request, redirect, url_for
 from spotipy.oauth2 import SpotifyOAuth
+from sklearn.neighbors import KNeighborsClassifier
+import numpy as np
+import requests
+import json
 from dotenv import load_dotenv
 
 # 加载环境变量
 load_dotenv()
 
-# Flask 配置
 app = Flask(__name__)
 
-# Spotify API 配置
-SPOTIPY_CLIENT_ID = "3395bd6dd71448e599805be8255c2437"  # 你的 client_id
-SPOTIPY_CLIENT_SECRET = "66431b32b0b04f078991a1486b5b9eb5"  # 你的 client_secret
-SPOTIPY_REDIRECT_URI = "https://two61272-s-project.onrender.com/callback"  # 更新后的重定向 URI
+# 设置 Spotify OAuth
+SPOTIPY_CLIENT_ID = os.getenv("SPOTIPY_CLIENT_ID")
+SPOTIPY_CLIENT_SECRET = os.getenv("SPOTIPY_CLIENT_SECRET")
+SPOTIPY_REDIRECT_URI = os.getenv("SPOTIPY_REDIRECT_URI")
+SCOPE = "user-library-read"
 
-# Spotify OAuth 设置
 sp_oauth = SpotifyOAuth(client_id=SPOTIPY_CLIENT_ID,
                          client_secret=SPOTIPY_CLIENT_SECRET,
                          redirect_uri=SPOTIPY_REDIRECT_URI,
-                         scope="user-library-read")
+                         scope=SCOPE)
 
-# 音频特征字段
-AUDIO_FEATURE_KEYS = [
-    "danceability", "energy", "key", "loudness", "mode", "speechiness",
-    "acousticness", "instrumentalness", "liveness", "valence", "tempo"
-]
+# 用于保存 Spotify API 的访问 token
+token_info = None
 
-# 获取 Spotify API 客户端
-def get_spotify_client():
-    token_info = sp_oauth.get_cached_token()
+@app.route('/')
+def home():
+    return render_template('index.html')
+
+@app.route('/login')
+def login():
+    auth_url = sp_oauth.get_authorize_url()
+    return redirect(auth_url)
+
+@app.route('/callback')
+def callback():
+    global token_info
+    token_info = sp_oauth.get_access_token(request.args['code'])
     if not token_info:
-        auth_url = sp_oauth.get_authorize_url()
-        return redirect(auth_url)
-    sp = spotipy.Spotify(auth=token_info["access_token"])
-    return sp
+        return "Failed to get access token", 400
+
+    # Check if token was successfully retrieved
+    access_token = token_info.get('access_token')
+    if not access_token:
+        return "Failed to retrieve access token", 400
+    
+    sp = spotipy.Spotify(auth=access_token)
+    
+    # Fetch user information to check if authentication is successful
+    user_info = sp.current_user()
+    if user_info:
+        return "Successfully authenticated: " + user_info['display_name']
+    else:
+        return "Failed to fetch user info", 400
+
+@app.route('/train', methods=['POST'])
+def train():
+    global token_info
+    if token_info is None:
+        return redirect(url_for('login'))
+    
+    # 用户输入的歌曲名称
+    user_input = request.form.get('songs_input')
+
+    # 解析歌曲数据
+    try:
+        X, y = parse_and_extract_features(user_input)
+    except ValueError as e:
+        return str(e), 400
+
+    # 用KNN训练模型
+    model = KNeighborsClassifier(n_neighbors=3)
+    model.fit(X, y)
+    
+    return "Model trained successfully!"
+
+# 解析歌曲并提取特征
+def parse_and_extract_features(user_input):
+    songs = user_input.split('/')
+    
+    X = []
+    y = []
+    
+    for genre, song_list in enumerate(songs):
+        song_names = song_list.split(',')
+        
+        for song_name in song_names:
+            song_name = song_name.strip()
+            features = get_song_features(song_name)
+            
+            if features is None:
+                raise ValueError(f"输入的歌曲 '{song_name}' 数据无效，请检查格式或歌曲名称是否正确。")
+            
+            X.append(features)
+            y.append(genre)
+    
+    return np.array(X), np.array(y)
 
 # 获取歌曲特征
-def get_audio_features(song_name):
+def get_song_features(song_name):
+    access_token = token_info.get('access_token')
+    sp = spotipy.Spotify(auth=access_token)
+    
     try:
-        sp = get_spotify_client()
-        results = sp.search(q=song_name, type='track', limit=1)
-        tracks = results.get("tracks", {}).get("items", [])
-        if not tracks:
-            print(f"未找到歌曲: {song_name}")
-            return None
-        track_id = tracks[0]["id"]
-        features = sp.audio_features([track_id])[0]
-        if features:
-            return [features[key] for key in AUDIO_FEATURE_KEYS]
+        results = sp.search(q=song_name, limit=1, type='track')
+        track = results['tracks']['items'][0]
+        
+        # 获取特征：如音调、舞蹈感等
+        features = sp.audio_features([track['id']])[0]
+        return [
+            features['danceability'],
+            features['energy'],
+            features['key'],
+            features['loudness'],
+            features['mode'],
+            features['speechiness'],
+            features['acousticness'],
+            features['instrumentalness'],
+            features['liveness'],
+            features['valence'],
+            features['tempo'],
+            features['type'],
+            features['id']
+        ]
     except Exception as e:
-        print(f"获取歌曲特征出错: {song_name} -> {e}")
-    return None
+        print(f"Error fetching features for {song_name}: {e}")
+        return None
 
-# 训练 KNN 模型
-def train_model(X, y, n_neighbors=3):
-    from sklearn.neighbors import KNeighborsClassifier
-    model = KNeighborsClassifier(n_neighbors=n_neighbors)
-    model.fit(X, y)
-    return model
-
-# 预测歌曲归属
-def predict_user_group(model, song_name):
-    features = get_audio_features(song_name)
-    if features:
-        pred = model.predict([features])
-        return int(pred[0])
-    return None
-
-# 主页路由，展示训练页面
-@app.route("/", methods=["GET", "POST"])
-def train():
-    if request.method == "POST":
-        user_input = request.form["user_input"]
-        # 解析和提取特征
-        X, y = parse_and_extract_features(user_input)
-        model = train_model(X, y)
-        return render_template("predict.html", model=model)
-    return render_template("train.html")
-
-# 预测页面
-@app.route("/predict", methods=["GET", "POST"])
-def predict():
-    if request.method == "POST":
-        song_name = request.form["song_name"]
-        model = request.form["model"]
-        group = predict_user_group(model, song_name)
-        return render_template("predict.html", group=group)
-    return render_template("predict.html")
-
-# 解析和提取特征
-def parse_and_extract_features(input_str):
-    import re
-    user_groups = re.split(r"\s*/\s*", input_str.strip())
-    all_features = []
-    labels = []
-    for idx, group in enumerate(user_groups):
-        songs = re.split(r"\s*,\s*|\s+", group.strip())
-        for song in songs:
-            feats = get_audio_features(song)
-            if feats:
-                all_features.append(feats)
-                labels.append(idx)
-            else:
-                print(f"警告: 无法获取歌曲 '{song}' 的特征。")
-    if not all_features:
-        raise ValueError("输入的歌曲数据无效，请检查格式或歌曲名称是否正确。")
-    return all_features, labels
-
-# 运行 Flask 应用
 if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
+    app.run(debug=True)
