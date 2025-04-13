@@ -1,5 +1,5 @@
-Flask==2.1.1
-spotipy==2.19.0
-sklearn==1.0.2
-requests==2.26.0
-python-dotenv==0.19.0
+Flask
+spotipy
+requests
+python-dotenv
+scikit-learn
