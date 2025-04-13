@@ -1,19 +1,16 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>预测页面</title>
+    <title>预测结果</title>
 </head>
 <body>
-    <h1>请输入要预测的歌曲名称</h1>
-    <form action="/predict" method="POST">
-        <input type="text" name="song_name" placeholder="Song Name"><br><br>
-        <input type="submit" value="预测歌曲">
+    <h1>预测歌曲归属</h1>
+    <form method="POST" action="/predict">
+        <input type="text" name="song_name" placeholder="输入歌曲名称">
+        <input type="submit" value="预测">
     </form>
-
-    {% if result is not none %}
-    <h2>该歌曲可能属于用户组: 用户{{ result }}</h2>
+    {% if group is not none %}
+        <p>预测结果：属于用户组 {{ group }}</p>
     {% endif %}
 </body>
 </html>

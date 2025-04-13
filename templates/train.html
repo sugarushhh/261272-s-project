@@ -1,15 +1,13 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>训练页面</title>
+    <title>训练模型</title>
 </head>
 <body>
-    <h1>请输入训练数据（每个用户组用“/”分隔，每个歌曲用“,”分隔）</h1>
-    <form action="/train" method="POST">
-        <textarea name="user_input" rows="10" cols="50"></textarea><br><br>
-        <input type="submit" value="训练模型">
+    <h1>输入训练数据</h1>
+    <form method="POST">
+        <textarea name="user_input" rows="10" cols="50" placeholder="每组用 / 分隔，每首歌用逗号分隔"></textarea><br>
+        <input type="submit" value="提交并训练模型">
     </form>
 </body>
 </html>

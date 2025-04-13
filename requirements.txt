@@ -1,5 +1,4 @@
-Flask
+flask
 spotipy
-requests
-python-dotenv
 scikit-learn
+python-dotenv
