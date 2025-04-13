@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>训练页面</title>
+</head>
+<body>
+    <h1>请输入训练数据（每个用户组用“/”分隔，每个歌曲用“,”分隔）</h1>
+    <form action="/train" method="POST">
+        <textarea name="user_input" rows="10" cols="50"></textarea><br><br>
+        <input type="submit" value="训练模型">
+    </form>
+</body>
+</html>

@@ -1,63 +1,109 @@
-from flask import Flask, request, redirect, session, jsonify
-import requests
 import os
-from urllib.parse import urlencode
+import spotipy
+from flask import Flask, render_template, request, redirect, url_for
+from spotipy.oauth2 import SpotifyOAuth
+from dotenv import load_dotenv
 
+# 加载环境变量
+load_dotenv()
+
+# Flask 配置
 app = Flask(__name__)
-app.secret_key = os.getenv("SECRET_KEY", "random_secret_key")
 
-CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID", "your_client_id")
-CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET", "your_client_secret")
-REDIRECT_URI = os.getenv("REDIRECT_URI", "http://localhost:5000/callback")
-SCOPE = "user-library-read user-read-private"
+# Spotify API 配置
+SPOTIPY_CLIENT_ID = "3395bd6dd71448e599805be8255c2437"  # 你的 client_id
+SPOTIPY_CLIENT_SECRET = "66431b32b0b04f078991a1486b5b9eb5"  # 你的 client_secret
+SPOTIPY_REDIRECT_URI = "https://two61272-s-project.onrender.com/callback"  # 更新后的重定向 URI
 
-SPOTIFY_AUTH_URL = "https://accounts.spotify.com/authorize"
-SPOTIFY_TOKEN_URL = "https://accounts.spotify.com/api/token"
-SPOTIFY_API_BASE_URL = "https://api.spotify.com/v1"
+# Spotify OAuth 设置
+sp_oauth = SpotifyOAuth(client_id=SPOTIPY_CLIENT_ID,
+                         client_secret=SPOTIPY_CLIENT_SECRET,
+                         redirect_uri=SPOTIPY_REDIRECT_URI,
+                         scope="user-library-read")
 
-@app.route("/")
-def index():
-    return "<h1>Spotify OAuth Demo</h1><a href='/login'>Login with Spotify</a>"
+# 音频特征字段
+AUDIO_FEATURE_KEYS = [
+    "danceability", "energy", "key", "loudness", "mode", "speechiness",
+    "acousticness", "instrumentalness", "liveness", "valence", "tempo"
+]
 
-@app.route("/login")
-def login():
-    auth_query = {
-        "response_type": "code",
-        "redirect_uri": REDIRECT_URI,
-        "scope": SCOPE,
-        "client_id": CLIENT_ID
-    }
-    return redirect(f"{SPOTIFY_AUTH_URL}/?{urlencode(auth_query)}")
+# 获取 Spotify API 客户端
+def get_spotify_client():
+    token_info = sp_oauth.get_cached_token()
+    if not token_info:
+        auth_url = sp_oauth.get_authorize_url()
+        return redirect(auth_url)
+    sp = spotipy.Spotify(auth=token_info["access_token"])
+    return sp
 
-@app.route("/callback")
-def callback():
-    code = request.args.get("code")
-    if not code:
-        return "Error: No code received"
+# 获取歌曲特征
+def get_audio_features(song_name):
+    try:
+        sp = get_spotify_client()
+        results = sp.search(q=song_name, type='track', limit=1)
+        tracks = results.get("tracks", {}).get("items", [])
+        if not tracks:
+            print(f"未找到歌曲: {song_name}")
+            return None
+        track_id = tracks[0]["id"]
+        features = sp.audio_features([track_id])[0]
+        if features:
+            return [features[key] for key in AUDIO_FEATURE_KEYS]
+    except Exception as e:
+        print(f"获取歌曲特征出错: {song_name} -> {e}")
+    return None
 
-    payload = {
-        "grant_type": "authorization_code",
-        "code": code,
-        "redirect_uri": REDIRECT_URI,
-        "client_id": CLIENT_ID,
-        "client_secret": CLIENT_SECRET
-    }
+# 训练 KNN 模型
+def train_model(X, y, n_neighbors=3):
+    from sklearn.neighbors import KNeighborsClassifier
+    model = KNeighborsClassifier(n_neighbors=n_neighbors)
+    model.fit(X, y)
+    return model
 
-    response = requests.post(SPOTIFY_TOKEN_URL, data=payload)
-    response_data = response.json()
+# 预测歌曲归属
+def predict_user_group(model, song_name):
+    features = get_audio_features(song_name)
+    if features:
+        pred = model.predict([features])
+        return int(pred[0])
+    return None
 
-    session["access_token"] = response_data.get("access_token")
-    return redirect("/profile")
+# 主页路由，展示训练页面
+@app.route("/", methods=["GET", "POST"])
+def train():
+    if request.method == "POST":
+        user_input = request.form["user_input"]
+        # 解析和提取特征
+        X, y = parse_and_extract_features(user_input)
+        model = train_model(X, y)
+        return render_template("predict.html", model=model)
+    return render_template("train.html")
 
-@app.route("/profile")
-def profile():
-    token = session.get("access_token")
-    if not token:
-        return redirect("/login")
+# 预测页面
+@app.route("/predict", methods=["GET", "POST"])
+def predict():
+    if request.method == "POST":
+        song_name = request.form["song_name"]
+        model = request.form["model"]
+        group = predict_user_group(model, song_name)
+        return render_template("predict.html", group=group)
+    return render_template("predict.html")
 
-    headers = {"Authorization": f"Bearer {token}"}
-    user_data = requests.get(f"{SPOTIFY_API_BASE_URL}/me", headers=headers).json()
-    return f"<h2>Welcome, {user_data.get('display_name')}</h2><pre>{user_data}</pre><a href='/'>Back to Home</a>"
+# 解析和提取特征
+def parse_and_extract_features(input_str):
+    import re
+    user_groups = re.split(r"\s*/\s*", input_str.strip())
+    all_features = []
+    labels = []
+    for idx, group in enumerate(user_groups):
+        songs = re.split(r"\s*,\s*|\s+", group.strip())
+        for song in songs:
+            feats = get_audio_features(song)
+            if feats:
+                all_features.append(feats)
+                labels.append(idx)
+    return all_features, labels
 
+# 运行 Flask 应用
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True, host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
