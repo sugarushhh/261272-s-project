@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: spotify-oauth-flask
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python app.py
+    envVars:
+      - key: SPOTIFY_CLIENT_ID
+        value: your_client_id_here
+      - key: SPOTIFY_CLIENT_SECRET
+        value: your_client_secret_here
+      - key: REDIRECT_URI
+        value: https://your-app-name.onrender.com/callback
